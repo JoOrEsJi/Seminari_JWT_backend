@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { registerNewUser, loginUser, googleAuth } from "../auth/auth_service.js";
+import { verifyRefreshToken, generateToken, generateRefreshToken } from "../../utils/jwt.handle.js";
+import User from "../users/user_models.js";
 
 const registerCtrl = async ({body}: Request, res: Response) => {
     try{
@@ -80,7 +82,47 @@ const googleAuthCallback = async (req: Request, res: Response) => {
         console.error('Error en callback de Google:', error);
         res.redirect('/login?error=server_error');
     }
-};
+}
+
+export const refreshCtrl = async (req: Request, res: Response) => {
+    try {
+      const { refreshToken } = req.body; 
+      if (!refreshToken) {
+        return res.status(400).json({ message: "Falta el refreshToken" });
+      }
+  
+      const decoded: any = verifyRefreshToken(refreshToken); 
+  
+      const user = await User.findOne({ _id: decoded.id });
+      if (!user) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+  
+      if (user.refreshToken !== refreshToken) {
+        return res.status(403).json({ message: "Refresh Token no válido" });
+      }
+  
+      const newAccessToken = generateToken(JSON.stringify({ 
+        id: user._id, 
+        email: user.email, 
+        role: "estudiante" 
+      }));
+  
+      const newRefreshToken = generateRefreshToken({ id: user._id, email: user.email });
+      user.refreshToken = newRefreshToken;
+      await user.save();
+  
+      return res.json({
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken  
+      });
+      
+    } catch (error: any) {
+      return res.status(401).json({ message: "Refresh Token expirado o inválido" });
+    }
+  };
+
+;
 
 
 export { registerCtrl, loginCtrl,googleAuthCtrl, googleAuthCallback };

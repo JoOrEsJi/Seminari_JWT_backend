@@ -1,5 +1,5 @@
 import { encrypt, verified } from "../../utils/bcrypt.handle.js";
-import { generateToken } from "../../utils/jwt.handle.js";
+import { generateToken, generateRefreshToken } from "../../utils/jwt.handle.js";
 import User, { IUser } from "../users/user_models.js";
 import { Auth } from "./auth_model.js";
 import jwt from 'jsonwebtoken';
@@ -21,13 +21,28 @@ const loginUser = async ({ email, password }: Auth) => {
     const checkIs = await User.findOne({ email });
     if(!checkIs) return "NOT_FOUND_USER";
 
-    const passwordHash = checkIs.password; //El encriptado que ve de la bbdd
+    const passwordHash = checkIs.password;
     const isCorrect = await verified(password, passwordHash);
     if(!isCorrect) return "INCORRECT_PASSWORD";
 
-    const token = generateToken(checkIs.email);
+    const accessToken = generateToken(JSON.stringify({ 
+        id: checkIs._id,
+        email: checkIs.email,
+        role: "estudiante" 
+    }));
+
+    const refreshToken = generateRefreshToken({ 
+        id: checkIs._id,
+        email: checkIs.email
+    });
+
+    // Guardamos el refresh token en la BD
+    checkIs.refreshToken = refreshToken;
+    await checkIs.save();
+
     const data = {
-        token,
+        accessToken,
+        refreshToken,
         user: checkIs
     }
     return data;
