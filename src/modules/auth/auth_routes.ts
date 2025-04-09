@@ -1,4 +1,3 @@
-// src/routes/user_routes.ts
 import express from 'express';
 import { registerCtrl, loginCtrl, googleAuthCtrl, googleAuthCallback, refreshCtrl } from "../auth/auth_controller.js";
 
@@ -85,10 +84,31 @@ router.post("/auth/register", registerCtrl);
  *     responses:
  *       200:
  *         description: Inicio de sesión exitoso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *                 refreshToken:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     age:
+ *                       type: integer
  *       400:
  *         description: Error en la solicitud
  */
 router.post("/auth/login", loginCtrl);
+
 /**
  * @swagger
  * /api/auth/google:
@@ -99,7 +119,7 @@ router.post("/auth/login", loginCtrl);
  *       302:
  *         description: Redirección a Google para autenticación
  */
-router.get('/auth/google',googleAuthCtrl );
+router.get('/auth/google', googleAuthCtrl);
 
 /**
  * @swagger
@@ -129,14 +149,25 @@ router.get('/auth/google/callback', googleAuthCallback);
  *             properties:
  *               refreshToken:
  *                 type: string
- *                 description: Refresh Token obtenido durante el inicio de sesión
+ *                 description: Token de refresco
  *             example:
- *               refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjYxMjg0MTQ5MzU3YTAwMDAyOWJjNjZiNiIsImVtYWlsIjoic2FtQHRoZXRvb2xvbmdpa2UuY29tIiwiaWF0IjoxNjQ5Mjk0NzI5LCJleHAiOjE2NDkyOTYzMjl9.Gpw-WFtjB5m1a6zg1DgYMuF8jJgHlQb25L88OB0ytSo"
+ *               refreshToken: "eyJhbGci..."
  *     responses:
  *       200:
  *         description: Nuevo Access Token generado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
  *       400:
- *         description: Error en la solicitud
+ *         description: Token faltante o mal formado
+ *       401:
+ *         description: Token expirado o inválido
+ *       403:
+ *         description: Token no coincide con el de base de datos
  */
 router.post('/auth/refresh', refreshCtrl);
 

@@ -1,64 +1,65 @@
 import { encrypt, verified } from "../../utils/bcrypt.handle.js";
 import { generateToken, generateRefreshToken } from "../../utils/jwt.handle.js";
-import User, { IUser } from "../users/user_models.js";
+import User from "../users/user_models.js";
 import { Auth } from "./auth_model.js";
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
 
-const registerNewUser = async ({ email, password, name, age }: IUser) => {
+const GOOGLE_CLIENT_ID = "tu-client-id";
+const GOOGLE_CLIENT_SECRET = "tu-client-secret";
+const GOOGLE_OAUTH_REDIRECT_URL = "http://localhost:9000/api/auth/google/callback";
+
+const registerNewUser = async ({ email, password, name, age }: any) => {
     const checkIs = await User.findOne({ email });
-    if(checkIs) return "ALREADY_USER";
+    if (checkIs) return "ALREADY_USER";
+
     const passHash = await encrypt(password);
-    const registerNewUser = await User.create({ 
-        email, 
-        password: passHash, 
-        name, 
-        age });
-    return registerNewUser;
+    const newUser = await User.create({
+        email,
+        password: passHash,
+        name,
+        age
+    });
+    return newUser;
 };
 
 const loginUser = async ({ email, password }: Auth) => {
     const checkIs = await User.findOne({ email });
-    if(!checkIs) return "NOT_FOUND_USER";
+    if (!checkIs) return "NOT_FOUND_USER";
 
     const passwordHash = checkIs.password;
     const isCorrect = await verified(password, passwordHash);
-    if(!isCorrect) return "INCORRECT_PASSWORD";
+    if (!isCorrect) return "INCORRECT_PASSWORD";
 
-    const accessToken = generateToken(JSON.stringify({ 
+    const accessToken = generateToken({
         id: checkIs._id,
         email: checkIs.email,
-        role: "estudiante" 
-    }));
+        role: "estudiante"
+    });
 
-    const refreshToken = generateRefreshToken({ 
+    const refreshToken = generateRefreshToken({
         id: checkIs._id,
         email: checkIs.email
     });
 
-    // Guardamos el refresh token en la BD
     checkIs.refreshToken = refreshToken;
     await checkIs.save();
 
     const data = {
         accessToken,
         refreshToken,
-        user: checkIs
-    }
+        user: {
+            id: checkIs._id,
+            name: checkIs.name,
+            email: checkIs.email,
+            age: checkIs.age
+        }
+    };
     return data;
 };
 
 const googleAuth = async (code: string) => {
-
     try {
-        console.log("Client ID:", process.env.GOOGLE_CLIENT_ID);
-        console.log("Client Secret:", process.env.GOOGLE_CLIENT_SECRET);
-        console.log("Redirect URI:", process.env.GOOGLE_OAUTH_REDIRECT_URL);
-    
-        if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_OAUTH_REDIRECT_URL) {
-            throw new Error("Variables de entorno faltantes");
-        }
-
         interface TokenResponse {
             access_token: string;
             expires_in: number;
@@ -66,29 +67,26 @@ const googleAuth = async (code: string) => {
             token_type: string;
             id_token?: string;
         }
-        //axios --> llibreria que s'utilitza per a fer peticions HTTP
+
         const tokenResponse = await axios.post<TokenResponse>('https://oauth2.googleapis.com/token', {
             code,
-            client_id: process.env.GOOGLE_CLIENT_ID,
-            client_secret: process.env.GOOGLE_CLIENT_SECRET,
-            redirect_uri: process.env.GOOGLE_OAUTH_REDIRECT_URL,
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: GOOGLE_CLIENT_SECRET,
+            redirect_uri: GOOGLE_OAUTH_REDIRECT_URL,
             grant_type: 'authorization_code'
         });
 
         const access_token = tokenResponse.data.access_token;
-        console.log("Access Token:", access_token); 
-        // Obté el perfil d'usuari
+
         const profileResponse = await axios.get('https://www.googleapis.com/oauth2/v1/userinfo', {
-            params: { access_token},
-            headers: { Accept: 'application/json',},
-            
+            params: { access_token },
+            headers: { Accept: 'application/json' },
         });
 
-        const profile = profileResponse.data as {name:string, email: string; id: string };
-        console.log("Access profile:", profile); 
-        // Busca o crea el perfil a la BBDD
-        let user = await User.findOne({ 
-            $or: [{name: profile.name},{ email: profile.email }, { googleId: profile.id }] 
+        const profile = profileResponse.data as { name: string, email: string; id: string };
+
+        let user = await User.findOne({
+            $or: [{ name: profile.name }, { email: profile.email }, { googleId: profile.id }]
         });
 
         if (!user) {
@@ -102,17 +100,12 @@ const googleAuth = async (code: string) => {
             });
         }
 
-        // Genera el token JWT
-        const token = generateToken(user.email);
-
-        console.log(token);
+        const token = generateToken({ id: user._id, email: user.email });
         return { token, user };
 
     } catch (error: any) {
-        console.error('Google Auth Error:', error.response?.data || error.message); // Log detallado
         throw new Error('Error en autenticación con Google');
     }
 };
-
 
 export { registerNewUser, loginUser, googleAuth };
