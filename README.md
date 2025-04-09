@@ -1,3 +1,15 @@
+Referencias:
+Gemini, chatgpt
+
+
+
+
+
+
+
+
+
+
 # SEMINARI JWT
 
 ## Descripció
